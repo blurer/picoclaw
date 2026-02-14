@@ -23,14 +23,26 @@ type ExecTool struct {
 
 func NewExecTool(workingDir string, restrict bool) *ExecTool {
 	denyPatterns := []*regexp.Regexp{
-		regexp.MustCompile(`\brm\s+-[rf]{1,2}\b`),
-		regexp.MustCompile(`\bdel\s+/[fq]\b`),
-		regexp.MustCompile(`\brmdir\s+/s\b`),
-		regexp.MustCompile(`\b(format|mkfs|diskpart)\b\s`), // Match disk wiping commands (must be followed by space/args)
-		regexp.MustCompile(`\bdd\s+if=`),
-		regexp.MustCompile(`>\s*/dev/sd[a-z]\b`), // Block writes to disk devices (but allow /dev/null)
-		regexp.MustCompile(`\b(shutdown|reboot|poweroff)\b`),
+		// rm -rf variants (case insensitive, handles --recursive --force)
+		regexp.MustCompile(`(?i)\brm\s+(-[rf]{1,2}|--recursive|--force)`),
+		// Windows delete commands
+		regexp.MustCompile(`(?i)\bdel\s+/[fq]`),
+		regexp.MustCompile(`(?i)\brmdir\s+/s`),
+		// Disk wiping commands (case insensitive)
+		regexp.MustCompile(`(?i)\b(format|mkfs|diskpart)\b\s`),
+		regexp.MustCompile(`(?i)\bdd\s+if=`),
+		// Block writes to disk devices (sd*, nvme*, vd*)
+		regexp.MustCompile(`(?i)>\s*/dev/(sd[a-z]|nvme\d+n\d+|vd[a-z])\b`),
+		// System control commands
+		regexp.MustCompile(`(?i)\b(shutdown|reboot|poweroff)\b`),
+		// Fork bomb
 		regexp.MustCompile(`:\(\)\s*\{.*\};\s*:`),
+		// Pipe to shell execution (curl/wget | sh, bash, etc.)
+		regexp.MustCompile(`(?i)\b(curl|wget)\b.*\|\s*(sh|bash|zsh|dash|ksh|csh|tcsh|fish)`),
+		// eval with command substitution or variables
+		regexp.MustCompile(`(?i)\beval\s+`),
+		// xargs rm (dangerous recursive delete)
+		regexp.MustCompile(`(?i)\bxargs\s+.*\brm\b`),
 	}
 
 	return &ExecTool{
@@ -172,8 +184,18 @@ func (t *ExecTool) guardCommand(command, cwd string) string {
 	}
 
 	if t.restrictToWorkspace {
+		// Check for path traversal patterns
 		if strings.Contains(cmd, "..\\") || strings.Contains(cmd, "../") {
 			return "Command blocked by safety guard (path traversal detected)"
+		}
+		// Check for URL-encoded path traversal
+		if strings.Contains(cmd, "%2e%2e%2f") || strings.Contains(cmd, "%2e%2e/") ||
+			strings.Contains(cmd, "..%2f") || strings.Contains(cmd, "%2e%2e%5c") {
+			return "Command blocked by safety guard (URL-encoded path traversal detected)"
+		}
+		// Check for null byte injection
+		if strings.Contains(cmd, "\x00") || strings.Contains(cmd, "%00") {
+			return "Command blocked by safety guard (null byte injection detected)"
 		}
 
 		cwdPath, err := filepath.Abs(cwd)

@@ -117,6 +117,18 @@ PicoClaw can be deployed on almost any Linux device!
 
 Download the firmware for your platform from the [release](https://github.com/sipeed/picoclaw/releases) page.
 
+### Quick Install (Debian/Ubuntu)
+
+One-liner for Debian 12 / Ubuntu with systemd service:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/blurer/picoclaw/main/scripts/install-debian.sh | sudo bash
+
+> Forked from [sipeed/picoclaw](https://github.com/sipeed/picoclaw)
+```
+
+This installs Go, builds PicoClaw, and sets up a systemd service for the gateway.
+
 ### Install from source (latest features, recommended for development)
 
 ```bash
@@ -654,6 +666,7 @@ The subagent has access to tools (message, web_search, etc.) and can communicate
 
 | Provider                   | Purpose                                 | Get API Key                                            |
 | -------------------------- | --------------------------------------- | ------------------------------------------------------ |
+| `ollama`                   | **Local LLM** (no API key needed)       | [ollama.ai](https://ollama.ai) - Self-hosted           |
 | `gemini`                   | LLM (Gemini direct)                     | [aistudio.google.com](https://aistudio.google.com)     |
 | `zhipu`                    | LLM (Zhipu direct)                      | [bigmodel.cn](bigmodel.cn)                             |
 | `openrouter(To be tested)` | LLM (recommended, access to all models) | [openrouter.ai](https://openrouter.ai)                 |
@@ -661,6 +674,58 @@ The subagent has access to tools (message, web_search, etc.) and can communicate
 | `openai(To be tested)`     | LLM (GPT direct)                        | [platform.openai.com](https://platform.openai.com)     |
 | `deepseek(To be tested)`   | LLM (DeepSeek direct)                   | [platform.deepseek.com](https://platform.deepseek.com) |
 | `groq`                     | LLM + **Voice transcription** (Whisper) | [console.groq.com](https://console.groq.com)           |
+
+<details>
+<summary><b>Ollama (Local Inference - Recommended for Privacy)</b></summary>
+
+Run LLMs locally with no API keys and complete privacy. Supports llama3.2, mistral, codellama, and more.
+
+**1. Install Ollama**
+
+```bash
+curl -fsSL https://ollama.ai/install.sh | sh
+ollama pull llama3.2
+```
+
+**2. Configure PicoClaw**
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "provider": "ollama",
+      "model": "llama3.2"
+    }
+  },
+  "providers": {
+    "ollama": {
+      "api_base": "http://localhost:11434"
+    }
+  }
+}
+```
+
+**3. Or use environment variables** (`.config.env`)
+
+```bash
+OLLAMA_API_BASE=http://localhost:11434
+PICOCLAW_AGENTS_DEFAULTS_PROVIDER=ollama
+PICOCLAW_AGENTS_DEFAULTS_MODEL=llama3.2
+```
+
+**Remote Ollama instance:**
+
+```json
+{
+  "providers": {
+    "ollama": {
+      "api_base": "http://192.168.1.100:11434"
+    }
+  }
+}
+```
+
+</details>
 
 <details>
 <summary><b>Zhipu</b></summary>
@@ -853,3 +918,64 @@ This happens when another instance of the bot is running. Make sure only one `pi
 | **Zhipu**        | 200K tokens/month   | Best for Chinese users                |
 | **Brave Search** | 2000 queries/month  | Web search functionality              |
 | **Groq**         | Free tier available | Fast inference (Llama, Mixtral)       |
+
+---
+
+## 🔧 Systemd Service
+
+For production deployments, run PicoClaw as a systemd service:
+
+```bash
+# Copy service file
+sudo cp scripts/picoclaw.service /etc/systemd/system/
+
+# Edit to match your user/paths
+sudo nano /etc/systemd/system/picoclaw.service
+
+# Enable and start
+sudo systemctl daemon-reload
+sudo systemctl enable picoclaw
+sudo systemctl start picoclaw
+
+# Check status
+sudo systemctl status picoclaw
+journalctl -u picoclaw -f
+```
+
+---
+
+## 🛡️ Security
+
+PicoClaw includes security hardening for safe operation:
+
+| Protection | Description |
+|------------|-------------|
+| **File permissions** | Config files use 0600, directories use 0700 |
+| **Symlink traversal** | Resolved before workspace boundary checks |
+| **SSRF prevention** | Blocks requests to localhost/private networks |
+| **Command blocklist** | Blocks dangerous commands (rm -rf, format, dd, etc.) |
+| **Path traversal** | Detects `../`, URL-encoded variants, null bytes |
+| **HTTP timeouts** | 300s timeout prevents hung connections |
+
+These protections are enabled by default when `restrict_to_workspace: true`.
+
+---
+
+## 📋 Changelog
+
+### 2026-02-14 - Ollama Provider & Security Hardening
+
+**Added:**
+- Ollama provider for local LLM inference (no API key required)
+- Debian/Ubuntu installer script with systemd support
+- Environment file support (`.config.env`) for easy configuration
+
+**Security fixes:**
+- Config/auth file permissions tightened (0644→0600, 0755→0700)
+- SSRF prevention for web_fetch tool (blocks localhost, private IPs)
+- Symlink traversal protection in filesystem tools
+- Enhanced command blocklist (case-insensitive, more patterns)
+- Path traversal detection (URL-encoded, null byte injection)
+- HTTP client timeout (prevents indefinite hangs)
+
+**No major vulnerabilities found** - these were defense-in-depth improvements for hardened deployments.

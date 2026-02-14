@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/chzyer/readline"
+	"github.com/joho/godotenv"
 	"github.com/sipeed/picoclaw/pkg/agent"
 	"github.com/sipeed/picoclaw/pkg/auth"
 	"github.com/sipeed/picoclaw/pkg/bus"
@@ -992,6 +993,11 @@ func setupCronTool(agentLoop *agent.AgentLoop, msgBus *bus.MessageBus, workspace
 }
 
 func loadConfig() (*config.Config, error) {
+	// Load env files (ignore errors if files don't exist)
+	_ = godotenv.Load(".config.env") // Ollama/local config
+	_ = godotenv.Load(".env")        // General secrets
+	_ = godotenv.Load()              // Default .env in current dir
+
 	return config.LoadConfig(getConfigPath())
 }
 

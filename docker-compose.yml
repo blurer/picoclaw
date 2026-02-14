@@ -10,6 +10,8 @@ services:
     container_name: picoclaw-agent
     profiles:
       - agent
+    env_file:
+      - .config.env
     volumes:
       - ./config/config.json:/root/.picoclaw/config.json:ro
       - picoclaw-workspace:/root/.picoclaw/workspace
@@ -29,6 +31,8 @@ services:
     restart: unless-stopped
     profiles:
       - gateway
+    env_file:
+      - .config.env
     volumes:
       # Configuration file
       - ./config/config.json:/root/.picoclaw/config.json:ro

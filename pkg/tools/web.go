@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -304,6 +305,55 @@ func (t *WebFetchTool) Parameters() map[string]interface{} {
 	}
 }
 
+// validateURLNotPrivate checks if a URL points to a private/internal network address
+// to prevent SSRF attacks
+func validateURLNotPrivate(urlStr string) error {
+	parsedURL, err := url.Parse(urlStr)
+	if err != nil {
+		return fmt.Errorf("invalid URL: %w", err)
+	}
+
+	host := parsedURL.Hostname()
+	if host == "" {
+		return fmt.Errorf("missing domain in URL")
+	}
+
+	// Block localhost variants
+	lowerHost := strings.ToLower(host)
+	if lowerHost == "localhost" || lowerHost == "127.0.0.1" || lowerHost == "::1" ||
+		strings.HasSuffix(lowerHost, ".localhost") || lowerHost == "[::1]" {
+		return fmt.Errorf("access to localhost is not allowed")
+	}
+
+	// Resolve hostname to check actual IP addresses
+	ips, err := net.LookupIP(host)
+	if err != nil {
+		// If we can't resolve, allow it (could be a valid external domain with temp DNS issues)
+		return nil
+	}
+
+	for _, ip := range ips {
+		// Check for loopback addresses
+		if ip.IsLoopback() {
+			return fmt.Errorf("access to loopback addresses is not allowed")
+		}
+		// Check for private network addresses (RFC 1918)
+		if ip.IsPrivate() {
+			return fmt.Errorf("access to private network addresses is not allowed")
+		}
+		// Check for link-local addresses
+		if ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+			return fmt.Errorf("access to link-local addresses is not allowed")
+		}
+		// Check for unspecified addresses (0.0.0.0, ::)
+		if ip.IsUnspecified() {
+			return fmt.Errorf("access to unspecified addresses is not allowed")
+		}
+	}
+
+	return nil
+}
+
 func (t *WebFetchTool) Execute(ctx context.Context, args map[string]interface{}) *ToolResult {
 	urlStr, ok := args["url"].(string)
 	if !ok {
@@ -321,6 +371,11 @@ func (t *WebFetchTool) Execute(ctx context.Context, args map[string]interface{})
 
 	if parsedURL.Host == "" {
 		return ErrorResult("missing domain in URL")
+	}
+
+	// SSRF prevention: block requests to private/internal networks
+	if err := validateURLNotPrivate(urlStr); err != nil {
+		return ErrorResult(fmt.Sprintf("SSRF protection: %v", err))
 	}
 
 	maxChars := t.maxChars

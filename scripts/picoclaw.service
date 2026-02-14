@@ -1,0 +1,28 @@
+[Unit]
+Description=PicoClaw AI Assistant Gateway
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=picoclaw
+Group=picoclaw
+WorkingDirectory=/home/picoclaw/.picoclaw
+ExecStart=/usr/local/bin/picoclaw gateway
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Environment file (optional, for Ollama config)
+EnvironmentFile=-/home/picoclaw/.picoclaw/.env
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/picoclaw/.picoclaw
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

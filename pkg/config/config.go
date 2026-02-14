@@ -168,13 +168,21 @@ type ProvidersConfig struct {
 	Moonshot     ProviderConfig `json:"moonshot"`
 	ShengSuanYun ProviderConfig `json:"shengsuanyun"`
 	DeepSeek     ProviderConfig `json:"deepseek"`
+	Ollama       OllamaConfig   `json:"ollama"`
 }
 
 type ProviderConfig struct {
-	APIKey     string `json:"api_key" env:"PICOCLAW_PROVIDERS_{{.Name}}_API_KEY"`
-	APIBase    string `json:"api_base" env:"PICOCLAW_PROVIDERS_{{.Name}}_API_BASE"`
-	Proxy      string `json:"proxy,omitempty" env:"PICOCLAW_PROVIDERS_{{.Name}}_PROXY"`
-	AuthMethod string `json:"auth_method,omitempty" env:"PICOCLAW_PROVIDERS_{{.Name}}_AUTH_METHOD"`
+	APIKey     string `json:"api_key"`
+	APIBase    string `json:"api_base"`
+	Proxy      string `json:"proxy,omitempty"`
+	AuthMethod string `json:"auth_method,omitempty"`
+}
+
+// OllamaConfig has explicit env var support since it's commonly used locally
+type OllamaConfig struct {
+	APIBase string `json:"api_base" env:"OLLAMA_API_BASE"`
+	APIKey  string `json:"api_key" env:"OLLAMA_API_KEY"`
+	Proxy   string `json:"proxy,omitempty" env:"OLLAMA_PROXY"`
 }
 
 type GatewayConfig struct {
@@ -284,6 +292,7 @@ func DefaultConfig() *Config {
 			Nvidia:       ProviderConfig{},
 			Moonshot:     ProviderConfig{},
 			ShengSuanYun: ProviderConfig{},
+			Ollama:       OllamaConfig{APIBase: "http://localhost:11434"},
 		},
 		Gateway: GatewayConfig{
 			Host: "0.0.0.0",
@@ -345,11 +354,11 @@ func SaveConfig(path string, cfg *Config) error {
 	}
 
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0700); err != nil {
 		return err
 	}
 
-	return os.WriteFile(path, data, 0644)
+	return os.WriteFile(path, data, 0600)
 }
 
 func (c *Config) WorkspacePath() string {

@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/sipeed/picoclaw/pkg/auth"
 	"github.com/sipeed/picoclaw/pkg/config"
@@ -28,7 +29,7 @@ type HTTPProvider struct {
 
 func NewHTTPProvider(apiKey, apiBase, proxy string) *HTTPProvider {
 	client := &http.Client{
-		Timeout: 0,
+		Timeout: 300 * time.Second,
 	}
 
 	if proxy != "" {
@@ -314,12 +315,20 @@ func CreateProvider(cfg *config.Config) (LLMProvider, error) {
 					model = "deepseek-chat"
 				}
 			}
+		case "ollama":
+			return NewOllamaProvider(cfg.Providers.Ollama.APIBase,
+				cfg.Providers.Ollama.APIKey, cfg.Providers.Ollama.Proxy), nil
 		}
 	}
 
 	// Fallback: detect provider from model name
 	if apiKey == "" && apiBase == "" {
 		switch {
+		case strings.HasPrefix(model, "ollama/"):
+			// Use Ollama provider for ollama/ prefixed models
+			return NewOllamaProvider(cfg.Providers.Ollama.APIBase,
+				cfg.Providers.Ollama.APIKey, cfg.Providers.Ollama.Proxy), nil
+
 		case (strings.Contains(lowerModel, "kimi") || strings.Contains(lowerModel, "moonshot") || strings.HasPrefix(model, "moonshot/")) && cfg.Providers.Moonshot.APIKey != "":
 			apiKey = cfg.Providers.Moonshot.APIKey
 			apiBase = cfg.Providers.Moonshot.APIBase

@@ -9,7 +9,17 @@ import (
 )
 
 // validatePath ensures the given path is within the workspace if restrict is true.
+// It also resolves symlinks to prevent symlink traversal attacks.
 func validatePath(path, workspace string, restrict bool) (string, error) {
+	// If restrict is enabled but workspace is empty, use current directory as fallback
+	if restrict && workspace == "" {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return "", fmt.Errorf("failed to get current directory: %w", err)
+		}
+		workspace = cwd
+	}
+
 	if workspace == "" {
 		return path, nil
 	}
@@ -17,6 +27,13 @@ func validatePath(path, workspace string, restrict bool) (string, error) {
 	absWorkspace, err := filepath.Abs(workspace)
 	if err != nil {
 		return "", fmt.Errorf("failed to resolve workspace path: %w", err)
+	}
+
+	// Resolve workspace symlinks for consistent comparison
+	realWorkspace, err := filepath.EvalSymlinks(absWorkspace)
+	if err != nil {
+		// If workspace doesn't exist yet, use the absolute path
+		realWorkspace = absWorkspace
 	}
 
 	var absPath string
@@ -29,8 +46,25 @@ func validatePath(path, workspace string, restrict bool) (string, error) {
 		}
 	}
 
-	if restrict && !strings.HasPrefix(absPath, absWorkspace) {
-		return "", fmt.Errorf("access denied: path is outside the workspace")
+	if restrict {
+		// Resolve symlinks in the target path to prevent symlink traversal
+		realPath, err := filepath.EvalSymlinks(absPath)
+		if err != nil {
+			// If path doesn't exist, check the parent directory
+			parentDir := filepath.Dir(absPath)
+			realParent, parentErr := filepath.EvalSymlinks(parentDir)
+			if parentErr != nil {
+				// Parent doesn't exist either, use the cleaned absolute path
+				realPath = absPath
+			} else {
+				realPath = filepath.Join(realParent, filepath.Base(absPath))
+			}
+		}
+
+		// Check if the resolved real path is within the workspace
+		if !strings.HasPrefix(realPath, realWorkspace) && !strings.HasPrefix(realPath, absWorkspace) {
+			return "", fmt.Errorf("access denied: path is outside the workspace")
+		}
 	}
 
 	return absPath, nil
