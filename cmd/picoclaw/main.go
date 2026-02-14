@@ -189,6 +189,8 @@ func main() {
 			fmt.Printf("Unknown skills command: %s\n", subcommand)
 			skillsHelp()
 		}
+	case "config":
+		configCmd()
 	case "version", "--version", "-v":
 		printVersion()
 	default:
@@ -211,6 +213,7 @@ func printHelp() {
 	fmt.Println("  cron        Manage scheduled tasks")
 	fmt.Println("  migrate     Migrate from OpenClaw to PicoClaw")
 	fmt.Println("  skills      Manage skills (install, list, remove)")
+	fmt.Println("  config      Manage configuration (get, set, list)")
 	fmt.Println("  version     Show version information")
 }
 
@@ -1414,4 +1417,202 @@ func skillsShowCmd(loader *skills.SkillsLoader, skillName string) {
 	fmt.Printf("\n📦 Skill: %s\n", skillName)
 	fmt.Println("----------------------")
 	fmt.Println(content)
+}
+
+// Config command
+func configCmd() {
+	if len(os.Args) < 3 {
+		configHelp()
+		return
+	}
+
+	subcommand := os.Args[2]
+
+	switch subcommand {
+	case "list", "show":
+		configListCmd()
+	case "get":
+		if len(os.Args) < 4 {
+			fmt.Println("Usage: picoclaw config get <key>")
+			fmt.Println("\nExample keys: provider, model, ollama.api_base")
+			return
+		}
+		configGetCmd(os.Args[3])
+	case "set":
+		if len(os.Args) < 5 {
+			fmt.Println("Usage: picoclaw config set <key> <value>")
+			fmt.Println("\nExample: picoclaw config set model llama3.2")
+			return
+		}
+		configSetCmd(os.Args[3], os.Args[4])
+	default:
+		fmt.Printf("Unknown config command: %s\n", subcommand)
+		configHelp()
+	}
+}
+
+func configHelp() {
+	fmt.Println("Usage: picoclaw config <command>")
+	fmt.Println()
+	fmt.Println("Commands:")
+	fmt.Println("  list              Show current configuration")
+	fmt.Println("  get <key>         Get a configuration value")
+	fmt.Println("  set <key> <value> Set a configuration value")
+	fmt.Println()
+	fmt.Println("Common keys:")
+	fmt.Println("  provider          LLM provider (ollama, openai, anthropic, etc.)")
+	fmt.Println("  model             Model name (llama3.2, gpt-4, etc.)")
+	fmt.Println("  ollama.api_base   Ollama API endpoint")
+	fmt.Println("  ollama.api_key    Ollama API key (optional)")
+	fmt.Println()
+	fmt.Println("Examples:")
+	fmt.Println("  picoclaw config list")
+	fmt.Println("  picoclaw config set provider ollama")
+	fmt.Println("  picoclaw config set model gpt-oss:120b")
+	fmt.Println("  picoclaw config set ollama.api_base http://192.168.1.100:11434")
+}
+
+func configListCmd() {
+	cfg, err := loadConfig()
+	if err != nil {
+		fmt.Printf("Error loading config: %v\n", err)
+		return
+	}
+
+	fmt.Println("Current Configuration:")
+	fmt.Println("----------------------")
+	fmt.Printf("  provider:        %s\n", cfg.Agents.Defaults.Provider)
+	fmt.Printf("  model:           %s\n", cfg.Agents.Defaults.Model)
+	fmt.Printf("  max_tokens:      %d\n", cfg.Agents.Defaults.MaxTokens)
+	fmt.Printf("  temperature:     %.1f\n", cfg.Agents.Defaults.Temperature)
+	fmt.Printf("  workspace:       %s\n", cfg.Agents.Defaults.Workspace)
+	fmt.Println()
+	fmt.Println("Ollama:")
+	fmt.Printf("  ollama.api_base: %s\n", cfg.Providers.Ollama.APIBase)
+	if cfg.Providers.Ollama.APIKey != "" {
+		fmt.Printf("  ollama.api_key:  %s\n", maskKey(cfg.Providers.Ollama.APIKey))
+	}
+	fmt.Println()
+	fmt.Printf("Config file: %s\n", getConfigPath())
+}
+
+func configGetCmd(key string) {
+	cfg, err := loadConfig()
+	if err != nil {
+		fmt.Printf("Error loading config: %v\n", err)
+		return
+	}
+
+	value := getConfigValue(cfg, key)
+	if value == "" {
+		fmt.Printf("Key '%s' not found or empty\n", key)
+		return
+	}
+	fmt.Println(value)
+}
+
+func configSetCmd(key, value string) {
+	cfg, err := loadConfig()
+	if err != nil {
+		fmt.Printf("Error loading config: %v\n", err)
+		return
+	}
+
+	if err := setConfigValue(cfg, key, value); err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
+	}
+
+	if err := config.SaveConfig(getConfigPath(), cfg); err != nil {
+		fmt.Printf("Error saving config: %v\n", err)
+		return
+	}
+
+	fmt.Printf("Set %s = %s\n", key, value)
+}
+
+func getConfigValue(cfg *config.Config, key string) string {
+	switch key {
+	case "provider":
+		return cfg.Agents.Defaults.Provider
+	case "model":
+		return cfg.Agents.Defaults.Model
+	case "max_tokens":
+		return fmt.Sprintf("%d", cfg.Agents.Defaults.MaxTokens)
+	case "temperature":
+		return fmt.Sprintf("%.1f", cfg.Agents.Defaults.Temperature)
+	case "workspace":
+		return cfg.Agents.Defaults.Workspace
+	case "ollama.api_base":
+		return cfg.Providers.Ollama.APIBase
+	case "ollama.api_key":
+		return cfg.Providers.Ollama.APIKey
+	case "openai.api_key":
+		return cfg.Providers.OpenAI.APIKey
+	case "openai.api_base":
+		return cfg.Providers.OpenAI.APIBase
+	case "anthropic.api_key":
+		return cfg.Providers.Anthropic.APIKey
+	case "openrouter.api_key":
+		return cfg.Providers.OpenRouter.APIKey
+	case "zhipu.api_key":
+		return cfg.Providers.Zhipu.APIKey
+	case "groq.api_key":
+		return cfg.Providers.Groq.APIKey
+	default:
+		return ""
+	}
+}
+
+func setConfigValue(cfg *config.Config, key, value string) error {
+	switch key {
+	case "provider":
+		cfg.Agents.Defaults.Provider = value
+	case "model":
+		cfg.Agents.Defaults.Model = value
+	case "max_tokens":
+		var tokens int
+		if _, err := fmt.Sscanf(value, "%d", &tokens); err != nil {
+			return fmt.Errorf("invalid max_tokens value: %s", value)
+		}
+		cfg.Agents.Defaults.MaxTokens = tokens
+	case "temperature":
+		var temp float64
+		if _, err := fmt.Sscanf(value, "%f", &temp); err != nil {
+			return fmt.Errorf("invalid temperature value: %s", value)
+		}
+		cfg.Agents.Defaults.Temperature = temp
+	case "workspace":
+		cfg.Agents.Defaults.Workspace = value
+	case "ollama.api_base":
+		cfg.Providers.Ollama.APIBase = value
+	case "ollama.api_key":
+		cfg.Providers.Ollama.APIKey = value
+	case "openai.api_key":
+		cfg.Providers.OpenAI.APIKey = value
+	case "openai.api_base":
+		cfg.Providers.OpenAI.APIBase = value
+	case "anthropic.api_key":
+		cfg.Providers.Anthropic.APIKey = value
+	case "anthropic.api_base":
+		cfg.Providers.Anthropic.APIBase = value
+	case "openrouter.api_key":
+		cfg.Providers.OpenRouter.APIKey = value
+	case "zhipu.api_key":
+		cfg.Providers.Zhipu.APIKey = value
+	case "zhipu.api_base":
+		cfg.Providers.Zhipu.APIBase = value
+	case "groq.api_key":
+		cfg.Providers.Groq.APIKey = value
+	default:
+		return fmt.Errorf("unknown key: %s", key)
+	}
+	return nil
+}
+
+func maskKey(key string) string {
+	if len(key) <= 8 {
+		return "****"
+	}
+	return key[:4] + "****" + key[len(key)-4:]
 }
