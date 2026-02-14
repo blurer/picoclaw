@@ -63,7 +63,14 @@ fi
 echo "[4/6] Building PicoClaw..."
 export PATH=$PATH:/usr/local/go/bin
 go mod tidy
+
+# Copy workspace for embedding
+cp -r workspace ./cmd/picoclaw/workspace
+
 go build -o picoclaw ./cmd/picoclaw
+
+# Clean up embedded workspace
+rm -rf ./cmd/picoclaw/workspace
 
 # Install binary
 echo "[5/6] Installing binary..."
