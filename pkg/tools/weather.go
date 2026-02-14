@@ -107,7 +107,11 @@ func (t *WeatherTool) Execute(ctx context.Context, args map[string]interface{}) 
 	result := fmt.Sprintf("%s: %.0f°F, %d%% humidity, %s, wind %.0f mph",
 		weather.Name, weather.Main.Temp, weather.Main.Humidity, desc, weather.Wind.Speed)
 
-	return SuccessResult(result)
+	return &ToolResult{
+		ForLLM:  result,
+		ForUser: result,
+		IsError: false,
+	}
 }
 
 func isNumeric(s string) bool {
