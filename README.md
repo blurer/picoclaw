@@ -842,8 +842,58 @@ picoclaw agent -m "Hello"
 | `picoclaw agent`          | Interactive chat mode         |
 | `picoclaw gateway`        | Start the gateway             |
 | `picoclaw status`         | Show status                   |
+| `picoclaw config list`    | Show current configuration    |
+| `picoclaw config set`     | Set a configuration value     |
 | `picoclaw cron list`      | List all scheduled jobs       |
 | `picoclaw cron add ...`   | Add a scheduled job           |
+
+### Configuration CLI
+
+No more hand-editing JSON! Use the config command:
+
+```bash
+# Show current config
+picoclaw config list
+
+# Set provider and model
+picoclaw config set provider ollama
+picoclaw config set model gpt-oss:120b
+picoclaw config set ollama.api_base http://192.168.1.100:11434
+
+# Get a specific value
+picoclaw config get model
+```
+
+**Example output:**
+```
+picoclaw config list
+
+Current Configuration:
+----------------------
+  provider:        ollama
+  model:           gpt-oss:120b
+  max_tokens:      8192
+  temperature:     0.7
+  workspace:       ~/.picoclaw/workspace
+
+Ollama:
+  ollama.api_base: http://172.30.30.3:11434
+
+Config file: /home/bl/.picoclaw/config.json
+```
+
+**Available keys:**
+| Key | Description |
+|-----|-------------|
+| `provider` | LLM provider (ollama, openai, anthropic, etc.) |
+| `model` | Model name |
+| `max_tokens` | Maximum tokens |
+| `temperature` | Temperature (0.0-1.0) |
+| `ollama.api_base` | Ollama endpoint URL |
+| `ollama.api_key` | Ollama API key (optional) |
+| `openai.api_key` | OpenAI API key |
+| `anthropic.api_key` | Anthropic API key |
+| `openrouter.api_key` | OpenRouter API key |
 
 ### Scheduled Tasks / Reminders
 
