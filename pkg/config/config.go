@@ -139,8 +139,14 @@ type WebToolsConfig struct {
 	DuckDuckGo DuckDuckGoConfig `json:"duckduckgo"`
 }
 
+type WeatherConfig struct {
+	APIKey     string `json:"api_key" env:"PICOCLAW_TOOLS_WEATHER_API_KEY"`
+	DefaultZip string `json:"default_zip" env:"PICOCLAW_TOOLS_WEATHER_DEFAULT_ZIP"`
+}
+
 type ToolsConfig struct {
-	Web WebToolsConfig `json:"web"`
+	Web     WebToolsConfig `json:"web"`
+	Weather WeatherConfig  `json:"weather"`
 }
 
 func DefaultConfig() *Config {
